@@ -156,7 +156,7 @@ data_bin_plot_mission = binned_means |>
 
 
 
-pdf("Figures/Mission Map.pdf", width = 15, height = 9.5)
+pdf("Poster/Figures/Mission Map.pdf", width = 15, height = 9.5)
 
 ggplot(data = data_bin_plot_mission) +
   annotation_map_tile(zoomin = 0, cachedir = "map_tiles_ggspatial") +
@@ -630,7 +630,7 @@ bin_low_r2_lin_bas = filter(data_large_bin_tags, id == id_low_r2_lin_bas)
 bin_high_r2_lin_bas = filter(data_large_bin_tags, id == id_high_r2_lin_bas)
 
 
-pdf(file = "Figures/low_linear_R2.pdf", width = 15, height = 9.5)
+pdf(file = "Poster/Figures/low_linear_R2.pdf", width = 15, height = 9.5)
 ggplot(data = bin_low_r2_lin_bas, aes(x = oxygen, y = elevation)) + geom_point(aes(color = mission, shape = mission),size = 1) + 
 ggtitle(paste0("Linear R-Squared = ", signif(low_r2_lin_bas, digits = 3))) + 
 theme(plot.title = element_text(hjust = 0.5, size = 60), axis.title = element_text(size = 30), legend.position = "none") +
@@ -638,7 +638,7 @@ geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 1, formula =
 geom_smooth(aes(color = mission), method = "gam", se = FALSE, linewidth = 2, formula = y ~ s(x, k=50))#, k=200))
 dev.off()
 
-pdf(file = "Figures/high_linear_R2.pdf", width = 15, height = 9.5)
+pdf(file = "Poster/Figures/high_linear_R2.pdf", width = 15, height = 9.5)
 ggplot(data = bin_high_r2_lin_bas, aes(x = oxygen, y = elevation)) + geom_point(aes(color = mission, shape = mission),size = 1) + 
 ggtitle(paste0("Linear R-Squared = ", signif(high_r2_lin_bas, digits = 3))) + 
 theme(plot.title = element_text(hjust = 0.5, size = 60), axis.title = element_text(size = 30), legend.position = "none") +
@@ -660,7 +660,7 @@ data_plot_edf = data_bins |>
                     left_join(data_spl_bas_edf, by = "id")
 
 
-pdf("Figures/EDF Map.pdf", width = 14.3, height = 9.5)
+pdf("Poster/Figures/EDF Map.pdf", width = 14.3, height = 9.5)
 ggplot(data = data_plot_edf) +
   annotation_map_tile(zoomin = 0, cachedir = "map_tiles_ggspatial") +
   geom_sf(aes(fill = edf), alpha = 0.5) +
@@ -680,7 +680,7 @@ data_plot_r2 = full_join(filter(data_bins, id %in% ids_large_n), data_tidy, by =
                                                  "Interaction" = "Interaction with Mission"))
 
 
-pdf("Figures/R2 Map.pdf", width = 15.1, height = 9.7)
+pdf("Poster/Figures/R2 Map.pdf", width = 15.1, height = 9.7)
 ggplot(data = data_plot_r2) +
   annotation_map_tile(zoomin = 0, cachedir = "map_tiles_ggspatial") +
   facet_grid(rows = vars(Type), cols = vars(model), switch = "y") +
