@@ -1,8 +1,0 @@
-
-Lat/Lon Errors
-
-Glider data is not accurate!!! Specifically, the latitude and longitude.
-
-Glider is dropped in the water and given a course plan. It moves in that direction, following the prescribed path. Glider can measure its own depth, but not its latitude/longitude. When the glider eventually surfaces, it re-connects with GPS and updates its position. This update is discontinuous.
-
-The discontinuous update is slightly problematic for data analysis. What's more problematic is that this means the latitude/longitude measurements are incorrect except when surfaced. There is an interesting missing data problem here, but it's beyond the scope of this project.
