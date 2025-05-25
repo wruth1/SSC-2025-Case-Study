@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you cite this poster, please use the following template:"
+authors:
+- family-names: "Ruth"
+  given-names: "William"
+- family-names: "Alfaro"
+  given-names: "Rowin"
+title: "When is simple good enough? Identifying regions in the Gulf of Saint Lawrence with a complicated relationship between depth and oxygen"
+date-presented: 2025-05-26
+url: "https://github.com/wruth1/SSC-2025-Case-Study"
