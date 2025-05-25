@@ -182,7 +182,7 @@ dev.off()
 check_multiple_missions = function(data) length(unique(data$mission)) > 1
 
 
-min_n <- 20                 # need at least k+1 rows for a spline (k default = 10 → 11 pts)
+min_n <- 20               #? Minimum number of points in a bin to fit a model
 
 ids_large_n = data_large_bin_tags |>
                 st_drop_geometry() |>
@@ -275,13 +275,6 @@ r2_info_lin_main <- data_large_bin_tags |>
 toc()
 
 
-# #* Effect on adjusted R2 of adding a mission main effect. Only plot for bins with > 1 mission
-# data_lin_bas_plus_main = left_join(r2_info_lin_bas, r2_info_lin_main, by = "id") |>
-#                 filter(n_missions > 1)
-
-# with(data_lin_bas_plus_main, plot(adj_r2_lin_bas, adj_r2_lin_main))
-# abline(a = 0, b = 1, col = "red")
-
 
 # --------------------------- Linear - Interaction --------------------------- #
 
@@ -323,21 +316,6 @@ r2_info_lin_int <- data_large_bin_tags |>
   select(-data, -fit, -summ) |>
   ungroup()
 toc()
-
-
-# #* Effect on adjusted R2 of adding a mission main effect. Only plot for bins with > 1 mission
-# data_lin_main_plus_int = left_join(r2_info_lin_main, r2_info_lin_int, by = "id") |>
-#                 filter(n_missions > 1)
-
-# with(data_lin_main_plus_int, plot(adj_r2_lin_main, adj_r2_lin_int))
-# abline(a = 0, b = 1, col = "red")
-
-
-
-
-
-num_ids = length(unique(test_data$id))
-
 
 
 
@@ -516,8 +494,9 @@ toc()
 
 
 # ---------------------------------------------------------------------------- #
-#                        Compile findings across models                        #
+#                      Consolidate findings across models                      #
 # ---------------------------------------------------------------------------- #
+
 
 # ---------------------------------- Linear ---------------------------------- #
 
@@ -630,41 +609,6 @@ contrast(ANOVA_edf, method = "pairwise")
 # ---------------------------------------------------------------------------- #
 
 
-# #! For making preliminary plot
-# #! Remove this
-
-# all_R2s = r2_info_lin_bas$r2_lin_bas
-# low_high_R2s = quantile(all_R2s, c(0.1, 0.9), type = 1)
-# low_R2 = low_high_R2s[1]
-# high_R2 = low_high_R2s[2]
-
-# ind_low_R2 = which(all_R2s == low_R2)
-# ind_high_R2 = which(all_R2s == high_R2)
-
-# id_low_R2 = pull(r2_info_lin_bas, id)[ind_low_R2]
-# id_high_R2 = pull(r2_info_lin_bas, id)[ind_high_R2]
-
-# bin_low_R2 = filter(data_large_bin_tags, id == id_low_R2)
-# bin_high_R2 = filter(data_large_bin_tags, id == id_high_R2)
-
-
-
-# pdf(file = "Figures/low_linear_R2.pdf", width = 15, height = 9.5)
-# ggplot(data = bin_low_R2, aes(x = oxygen, y = elevation)) + geom_point(aes(color = mission, shape = mission),size = 1) + 
-# ggtitle(paste0("R-Squared = ", signif(low_R2, digits = 3))) + 
-# theme(plot.title = element_text(hjust = 0.5, size = 40), axis.title = element_text(size = 30), legend.position = "none") +
-# geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 1, formula = y ~ x) +
-# geom_smooth(aes(color = mission), method = "gam", se = FALSE, linewidth = 2, formula = y ~ s(x))
-# dev.off()
-
-
-# pdf(file = "Figures/high_linear_R2.pdf", width = 15, height = 9.5)
-# ggplot(data = bin_high_R2, aes(x = oxygen, y = elevation)) + geom_point(aes(color = mission, shape = mission),size = 1) + 
-# ggtitle(paste0("R-Squared = ", signif(high_R2, digits = 3))) + 
-# theme(plot.title = element_text(hjust = 0.5, size = 40), axis.title = element_text(size = 30), legend.position = "none") +
-# geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 1, formula = y ~ x) +
-# geom_smooth(aes(color = mission), method = "gam", se = FALSE, linewidth = 2, formula = y ~ s(x))
-# dev.off()
 
 # ---------------------- Low and High complexity regions --------------------- #
 
@@ -701,11 +645,6 @@ theme(plot.title = element_text(hjust = 0.5, size = 60), axis.title = element_te
 geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 1, formula = y ~ x) +
 geom_smooth(aes(color = mission), method = "gam", se = FALSE, linewidth = 2, formula = y ~ s(x, k=50))
 dev.off()
-
-
-# test = gam(oxygen ~ s(elevation, k=100), data = bin_low_r2_lin_bas)
-# test = gam(oxygen ~ s(elevation, k=200), data = bin_high_r2_lin_bas)
-# summary(test)
 
 
 
@@ -752,16 +691,3 @@ ggplot(data = data_plot_r2) +
         strip.text = element_text(size = 30), strip.text.y = element_text(angle = 90, vjust = 0.5),
         legend.key.height = unit(1.5, "cm"))
 dev.off()
-
-
-
-
-
-
-
-
-
-
-
-
-
