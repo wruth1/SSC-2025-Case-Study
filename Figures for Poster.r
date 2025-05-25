@@ -336,21 +336,33 @@ toc()
 
 
 
+num_ids = length(unique(test_data$id))
+
+
+
 
 # ------------------------------ Spline - Basic ------------------------------ #
 
 
+pb = progress_bar$new(total = num_ids, format = "[:bar] :percent completed in :elapsed, eta: :eta")
+pb$tick(0)
+
+# q = r2_info_spl_bas
 
 tic()
 r2_info_spl_bas <- data_large_bin_tags |>
   st_drop_geometry() |>
   filter(id %in% ids_large_n) |>
+#   slice_sample(n = 100000) |>
   group_by(id) |>
   nest() |>
   mutate(
     
     fit   = map(data,
-                 possibly(~ gam(oxygen ~ s(elevation), data = .x),
+                 possibly(\(this_data){
+                                pb$tick()
+                                gam(oxygen ~ s(elevation, k=50), data = this_data)
+                            },
                           otherwise = NULL)),
 
     summ = map(fit, \(m)
@@ -381,20 +393,27 @@ toc()
 # ----------------------------- Spline - Mission ----------------------------- #
 
 
+pb = progress_bar$new(total = num_ids, format = "[:bar] :percent completed in :elapsed, eta: :eta")
+pb$tick(0)
+
 tic()
 r2_info_spl_main <- data_large_bin_tags |>
   st_drop_geometry() |>
   filter(id %in% ids_large_n) |>
+#   slice_sample(n=100000) |>
   group_by(id) |>
   nest() |>
   mutate(
     
     fit   = map(data,
-                 possibly(~ if(check_multiple_missions(.x)) {
-                                  gam(oxygen ~ s(elevation) + mission, data = .x)
+                 possibly(\(this_data){
+                                pb$tick()
+                                if(check_multiple_missions(this_data)) {
+                                  gam(oxygen ~ s(elevation, k=50) + mission, data = this_data)
                               } else {
-                                  gam(oxygen ~ s(elevation), data = .x)
-                              },
+                                  gam(oxygen ~ s(elevation, k=50), data = this_data)
+                              }
+                 },
                           otherwise = NULL)),
 
     summ = map(fit, \(m)
@@ -426,21 +445,29 @@ toc()
 # --------------------------- Spline - Interaction --------------------------- #
 
 
+
+pb = progress_bar$new(total = num_ids, format = "[:bar] :percent completed in :elapsed, eta: :eta")
+pb$tick(0)
+
 tic()
 r2_info_spl_int <- data_large_bin_tags |>
   st_drop_geometry() |>
   filter(id %in% ids_large_n) |>
   mutate(mission = as.factor(mission)) |>
+#   slice_sample(n=100000) |>
   group_by(id) |>
   nest() |>
   mutate(
     
     fit   = map(data,
-                 possibly(~ if(check_multiple_missions(.x)) {
-                                  gam(oxygen ~ mission + s(elevation, by = mission), data = .x)
+                 possibly(\(this_data){
+                    pb$tick()
+                    if(check_multiple_missions(this_data)) {
+                                  gam(oxygen ~ mission + s(elevation, k=50, by = mission), data = this_data)
                               } else {
-                                  gam(oxygen ~ s(elevation), data = .x)
-                              },
+                                  gam(oxygen ~ s(elevation, k=50), data = this_data)
+                              }
+                 },
                           otherwise = NULL)),
 
     summ = map(fit, \(m)
@@ -557,21 +584,23 @@ data_spl_tidy = left_join(adj_r2_spl_tidy, edf_spl_tidy, by = c("id", "model")) 
 
 data_tidy = bind_rows(data_lin_tidy, data_spl_tidy)
 
+save(data_tidy, file = "Results-2500m.RData")
+
 
 
 # ---------------------------------------------------------------------------- #
 #                          Simple ANOVA of R2 and EDF                          #
 # ---------------------------------------------------------------------------- #
 
-#! Results in this section will change after re-computing everything on the full dataset
 
 # --------------------------- (Adjusted) R-Squared --------------------------- #
 
-#? No significant effect of interaction
+#? No significant effect of interaction. Confirmed on large dataset
+# fit_results_adj_r2 = lm(adj_r2 ~ Type * model, data = data_tidy)
 fit_results_adj_r2 = lm(adj_r2 ~ Type + model, data = data_tidy)
 summary(fit_results_adj_r2)
 
-#? Both alternatives are much better than baseline (p < 1e-4). Interaction vs ME is less different (p ~ 0.0071).
+#? Both alternatives are much better than baseline (p < 1e-4). Interaction vs ME is less different (p ~ 0.0237).
 ANOVA_adj_r2 = emmeans(fit_results_adj_r2, ~ model)
 contrast(ANOVA_adj_r2, method = "pairwise")
 
@@ -659,19 +688,24 @@ bin_high_r2_lin_bas = filter(data_large_bin_tags, id == id_high_r2_lin_bas)
 
 pdf(file = "Figures/low_linear_R2.pdf", width = 15, height = 9.5)
 ggplot(data = bin_low_r2_lin_bas, aes(x = oxygen, y = elevation)) + geom_point(aes(color = mission, shape = mission),size = 1) + 
-ggtitle(paste0("R-Squared = ", signif(low_r2_lin_bas, digits = 3))) + 
-theme(plot.title = element_text(hjust = 0.5, size = 40), axis.title = element_text(size = 30), legend.position = "none") +
+ggtitle(paste0("Linear R-Squared = ", signif(low_r2_lin_bas, digits = 3))) + 
+theme(plot.title = element_text(hjust = 0.5, size = 60), axis.title = element_text(size = 30), legend.position = "none") +
 geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 1, formula = y ~ x) +
-geom_smooth(aes(color = mission), method = "gam", se = FALSE, linewidth = 2, formula = y ~ s(x))
+geom_smooth(aes(color = mission), method = "gam", se = FALSE, linewidth = 2, formula = y ~ s(x, k=50))#, k=200))
 dev.off()
 
 pdf(file = "Figures/high_linear_R2.pdf", width = 15, height = 9.5)
 ggplot(data = bin_high_r2_lin_bas, aes(x = oxygen, y = elevation)) + geom_point(aes(color = mission, shape = mission),size = 1) + 
-ggtitle(paste0("R-Squared = ", signif(high_r2_lin_bas, digits = 3))) + 
-theme(plot.title = element_text(hjust = 0.5, size = 40), axis.title = element_text(size = 30), legend.position = "none") +
+ggtitle(paste0("Linear R-Squared = ", signif(high_r2_lin_bas, digits = 3))) + 
+theme(plot.title = element_text(hjust = 0.5, size = 60), axis.title = element_text(size = 30), legend.position = "none") +
 geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 1, formula = y ~ x) +
-geom_smooth(aes(color = mission), method = "gam", se = FALSE, linewidth = 2, formula = y ~ s(x))
+geom_smooth(aes(color = mission), method = "gam", se = FALSE, linewidth = 2, formula = y ~ s(x, k=50))
 dev.off()
+
+
+# test = gam(oxygen ~ s(elevation, k=100), data = bin_low_r2_lin_bas)
+# test = gam(oxygen ~ s(elevation, k=200), data = bin_high_r2_lin_bas)
+# summary(test)
 
 
 
@@ -693,7 +727,7 @@ ggplot(data = data_plot_edf) +
   geom_sf(aes(fill = edf), alpha = 0.5) +
   scale_fill_viridis_c() +
   theme_void() +  labs(fill = "DF") +
-  theme(legend.title = element_text(size = 30), legend.text = element_text(size = 20))
+  theme(legend.title = element_text(size = 40), legend.text = element_text(size = 30), legend.key.height = unit(1.5, "cm"))
 dev.off()
 
 
@@ -707,15 +741,16 @@ data_plot_r2 = full_join(filter(data_bins, id %in% ids_large_n), data_tidy, by =
                                                  "Interaction" = "Interaction with Mission"))
 
 
-pdf("Figures/R2 Map.pdf", width = 14.4, height = 9.7)
+pdf("Figures/R2 Map.pdf", width = 15.1, height = 9.7)
 ggplot(data = data_plot_r2) +
   annotation_map_tile(zoomin = 0, cachedir = "map_tiles_ggspatial") +
   facet_grid(rows = vars(Type), cols = vars(model), switch = "y") +
   geom_sf(aes(fill = adj_r2), alpha = 0.5) +
   scale_fill_viridis_c() +
-  theme_void() +  labs(fill = "DF") +
-  theme(legend.title = element_text(size = 20), legend.text = element_text(size = 15), 
-        strip.text = element_text(size = 15), strip.text.y = element_text(angle = 90, vjust = 0.5))
+  theme_void() +  labs(fill = expression("Adj-" * R^2)) +
+  theme(legend.title = element_text(size = 25), legend.text = element_text(size = 15), 
+        strip.text = element_text(size = 30), strip.text.y = element_text(angle = 90, vjust = 0.5),
+        legend.key.height = unit(1.5, "cm"))
 dev.off()
 
 
@@ -730,416 +765,3 @@ dev.off()
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-# ---------------------------------------------------------------------------- #
-#                           Extract and plot bin data                          #
-# ---------------------------------------------------------------------------- #
-
-# plot_id = id_min_dist
-plot_id = 1716
-# plot_id = 1
-
-data_bins |> filter(mission == "Multiple") |> pull(id)
-
-data_this_bin = filter(data_large_bin_tags, id == plot_id)
-# data_high_R2 = data_this_bin
-# data_low_R2 = data_this_bin
-other_data_low_R2 = data_this_bin
-
-fit = lm(oxygen ~ elevation + mission, data = data_this_bin)
-
-fit_spl = gam(oxygen ~ s(elevation) + mission, data = data_this_bin)
-q = summary(fit_spl)
-
-this_data = st_drop_geometry(data_this_bin) |> mutate(mission = as.factor(mission))
-
-fit_spl_int = gam(oxygen ~ mission + s(elevation, by = mission), data = this_data)
-q = summary(fit_spl_int)
-
-sum(q$s.table[, "edf"])
-
-
-ggplot(data = data_this_bin, aes(x = oxygen, y = elevation, colour = mission)) + geom_point()
-
-
-this_fit = lm(oxygen ~ elevation, data = data_this_bin)
-summary(this_fit)
-plot(this_fit)
-
-
-test = gamSim(4)
-fit_test = gam(y ~ fac + s(x2, by = fac), data = test)
-
-
-# ---------------------------------------------------------------------------- #
-#                      Add fixed effect for mission to lm                      #
-# ---------------------------------------------------------------------------- #
-
-
-# ------------------------ Bins with multiple missions ----------------------- #
-
-ids_mult_missions = data_bins |>
-                        filter(mission == "Multiple") |>
-                        pull(id)
-
-
-
-min_n <- 20                 # need at least k+1 rows (k default = 10 → 11 pts)
-default_k <- 10             # basis dimension for s()
-
-ids_large_n = data_large_bin_tags |>
-                group_by(id) |>
-                summarise(n = n()) |>
-                filter(n >= min_n) |>
-                pull(id)
-
-# some_ids = ids_mult_missions[11:20]
-
-
-# -------------------------------- Fit models -------------------------------- #
-
-check_multiple_missions = function(data) length(unique(data$mission)) > 1
-
-tic()
-lm_tbl <- data_large_bin_tags |>
-#   filter(id %in% some_ids) |>
-  # filter(id %in% ids_mult_missions) |>
-  filter(id %in% ids_large_n) |>
-  st_drop_geometry() |>
-  group_by(id) |>
-  # filter(n() >= min_n) |>
-  nest() |>
-  mutate(
-    
-    fit   = map(data,
-                 possibly(~ if(check_multiple_missions(.x)) {
-                                  lm(oxygen ~ elevation + mission, data = .x)
-                              } else {
-                                  lm(oxygen ~ elevation, data = .x)
-                              },
-                          otherwise = NULL)),
-
-    summ = map(fit, \(m)
-                   if (is.null(m)) NULL
-                   else summary(m)),
-                   
-    r2_mission = map_dbl(summ, \(s)
-            if (is.null(s)) NA_real_
-            else {
-            this_summ = summ[[1]]
-            this_summ$r.sq
-            }),
-    adj_r2_mission = map_dbl(summ, \(s)
-            if (is.null(s)) NA_real_
-            else {
-            this_summ = summ[[1]]
-            this_summ$adj.r.sq
-            }),
-  ) |>
-  ungroup()
-toc()
-
-
-
-# ---------------------- Plot R2 for mission-adjusted lm --------------------- #
-
-
-
-# Add mission-adjusted R2 to bin data
-data_bins_mult = data_bins |>
-                    filter(id %in% ids_large_n) |>
-                    left_join(bins_R2, by = "id") |>
-                    # filter(id %in% ids_mult_missions) |>
-                    left_join(select(lm_tbl, id, r2_mission), by = "id") |>
-                    rename(simple_R2 = r2, mission_R2 = r2_mission) |>
-                    mutate(R2_ratio = mission_R2 / simple_R2, log_R2_ratio = log10(R2_ratio))
-
-simple_R2s = data_bins_mult |> select(id, simple_R2) |> st_drop_geometry()
-mission_R2s = data_bins_mult |> select(id, mission_R2) |> st_drop_geometry()
-
-#Extract lower 10th percentile of R2s
-low_high_R2s =quantile(simple_R2s$simple_R2, probs = c(0.1, 0.9), type=1)
-low_high_mission_R2s =quantile(mission_R2s$mission_R2, probs = c(0.1, 0.9), type=1)
-
-
-id_low_R2 = simple_R2s$id[which(simple_R2s$simple_R2 == low_high_R2s[1])]
-id_high_R2 = simple_R2s$id[which(simple_R2s$simple_R2 == low_high_R2s[2])]
-id_low_mission_R2 = mission_R2s$id[which(mission_R2s$mission_R2 == low_high_mission_R2s[1])]
-id_high_mission_R2 = mission_R2s$id[which(mission_R2s$mission_R2 == low_high_mission_R2s[2])]
-
-data_low_R2 = data_large_bin_tags |>
-                filter(id %in% id_low_R2)
-data_high_R2 = data_large_bin_tags |>
-                filter(id %in% id_high_R2)
-data_low_mission_R2 = data_large_bin_tags |>
-                filter(id %in% id_low_mission_R2)
-data_high_mission_R2 = data_large_bin_tags |>
-                filter(id %in% id_high_mission_R2)
-
-
-#! These plots go in the poster
-#! Add lines and splines?
-ggplot(data = data_low_R2, aes(x = oxygen, y = elevation, colour = mission)) + geom_point() +
-    ggtitle("Low R2: O2 ~ elevation + mission")
-ggplot(data = data_high_R2, aes(x = oxygen, y = elevation, colour = mission)) + geom_point() +
-    ggtitle("High R2: O2 ~ elevation + mission")
-
-ggplot(data = data_low_mission_R2, aes(x = oxygen, y = elevation, colour = mission)) + geom_point() +
-    ggtitle("Low R2: O2 ~ elevation + mission")
-ggplot(data = data_high_mission_R2, aes(x = oxygen, y = elevation, colour = mission)) + geom_point() +
-    ggtitle("High R2: O2 ~ elevation + mission")
-
-
-# Build plots
-
-## Simple R2 (O2 ~ elevation)
-ggplot(data = data_bins_mult) +
-  annotation_map_tile(zoomin = 0, cachedir = "map_tiles_ggspatial") +
-  geom_sf(aes(fill = simple_R2), alpha = 0.5) +
-  scale_fill_viridis_c() + ggtitle("Simple R2: O2 ~ elevation") +
-  theme_minimal()
-
-## Mission-adjusted R2 (O2 ~ elevation + mission)
-#! This goes in the poster
-ggplot(data = data_bins_mult) +
-    annotation_map_tile(zoomin = 0, cachedir = "map_tiles_ggspatial") +
-    geom_sf(aes(fill = mission_R2), alpha = 0.5) +
-    scale_fill_viridis_c() + ggtitle("Mission-Adjusted R2: O2 ~ elevation + mission") +
-    theme_minimal()
-
-## log-Ratio of R2s (mission / simple)
-ggplot(data = data_bins_mult) +
-    annotation_map_tile(zoomin = 0, cachedir = "map_tiles_ggspatial") +
-    geom_sf(aes(fill = log_R2_ratio), alpha = 0.5) +
-    scale_fill_viridis_c() + ggtitle("log-Ratio of R2s (base 10): Mission / Simple") +
-    theme_minimal()
-
-
-# --------------------- Explore bins with large R2 jumps --------------------- #
-
-data_bins_mult |>
-    filter(R2_ratio > 10 & R2_ratio < 500000) |>
-    pull(R2_ratio) |>
-    hist(breaks = 100)
-
-
-id_large_jump = data_bins_mult |>
-                    filter(R2_ratio > 1.9e+04 & R2_ratio < 2.1e+04) |>
-                    pull(id)
-
-this_data_jump = data_large_bin_tags |>
-                    filter(id == id_large_jump)
-
-ggplot(data = this_data_jump, mapping = aes(x = oxygen, y = elevation, colour = time, shape = mission)) + geom_point() 
-ggplot(data = this_data_jump, mapping = aes(x = oxygen, y = elevation, colour = mission)) + geom_point() 
-
-str(data_large_bin_tags)
-
-
-# ---------------------------------------------------------------------------- #
-#                                Explore Splines                               #
-# ---------------------------------------------------------------------------- #
-
-
-
-tic()
-this_spline = smooth.spline(data_this_bin$elevation, data_this_bin$oxygen)
-toc()
-
-plot(data_this_bin$elevation, data_this_bin$oxygen)
-lines(this_spline)
-
-
-tic()
-fit_GAM = gam(oxygen ~ s(elevation), data = data_this_bin, method = "GCV.Cp")
-toc()
-
-summary(fit_GAM)
-
-plot(data_this_bin$elevation, data_this_bin$oxygen)
-plot(fit_GAM, residuals = TRUE)
-
-q = summary(fit_GAM)
-q$edf
-
-
-
-tic()
-this_fit_gam = gam(oxygen ~ s(elevation), data = data_this_bin)
-this_DF = summary(this_fit_gam)$edf
-toc()
-
-
-
-tic()
-all_DF = sum(gam(oxygen ~ s(elevation), data = data_this_bin)$edf) -1 
-toc()
-
-summary(this_fit_gam)$s.table
-
-
-
-
-# ---------------------------- Loop over all bins ---------------------------- #
-
-
-
-min_n <- 20                 # need at least k+1 rows (k default = 10 → 11 pts)
-default_k <- 10             # basis dimension for s()
-
-
-tic()
-gam_tbl <- data_large_bin_tags |>
-  st_drop_geometry() |>
-  group_by(id) |>
-  filter(n() >= min_n) |>
-  nest() |>
-  mutate(
-    
-    fit   = map(data,
-                 possibly(~ if(check_multiple_missions(.x)) {
-                                  gam(oxygen ~ s(elevation) + mission, data = .x)
-                              } else {
-                                  gam(oxygen ~ s(elevation), data = .x)
-                              },
-                          otherwise = NULL)),
-
-    summ = map(fit, \(m)
-                   if (is.null(m)) NULL
-                   else summary(m)),
-    
-    edf_smooth = map_dbl(summ, \(s)
-                   if (is.null(s)) NA_real_
-                   else {
-                     # First smooth term's EDF (oxygen ~ s(elevation))
-                     this_summ = summ[[1]]
-                     this_summ$s.table[1, "edf"]
-                   }),
-                   
-    r2 = map_dbl(summ, \(s)
-            if (is.null(s)) NA_real_
-            else {
-            this_summ = summ[[1]]
-            this_summ$r.sq
-            })
-  ) |>
-  ungroup()
-toc()
-
-
-spline_DFs = gam_tbl$edf_smooth
-hist(spline_DFs)
-
-
-# ---------------------------------- Plot DF --------------------------------- #
-
-# Add edf_smooth to data_bins
-data_bin_DF = right_join(data_bins, select(gam_tbl, id, edf_smooth), by = "id") |> rename(DF = edf_smooth)
-
-
-Spline_DF_plot = ggplot(data = data_bin_DF) +
-  annotation_map_tile(zoomin = 0, cachedir = "map_tiles_ggspatial") +
-  geom_sf(aes(fill = DF), alpha = 0.5) +
-  scale_fill_viridis_c() +
-  theme_minimal()
-Spline_DF_plot
-
-
-# ------------------------------ Plot spline R2 ------------------------------ #
-
-data_bin_spline_R2 = right_join(data_bins, select(gam_tbl, id, r2), by = "id") |> rename(r2_spline = r2)
-
-
-Spline_R2_plot = ggplot(data = data_bin_spline_R2) +
-  annotation_map_tile(zoomin = 0, cachedir = "map_tiles_ggspatial") +
-  geom_sf(aes(fill = r2_spline), alpha = 0.5) +
-  scale_fill_viridis_c() +
-  theme_minimal()
-Spline_R2_plot
-
-
-# --------------------------------- Bin sizes -------------------------------- #
-
-# Number of measurements per bin
-all_bin_sizes = data_large_bin_tags |>
-  st_drop_geometry() |>
-  group_by(id) |>
-  summarise(n = n()) 
-nrow(all_bin_sizes)
-
-
-
-# Add bin sizes to gam_tbl
-
-gam_tbl_sizes = left_join(gam_tbl, all_bin_sizes, by = "id")
-hist(gam_tbl_sizes$n)
-
-with(gam_tbl_sizes, plot(n, edf_smooth))
-with(gam_tbl_sizes, plot(n, r2))
-
-cor(gam_tbl_sizes$n, gam_tbl_sizes$edf_smooth)
-
-
-
-
-
-
-# ---------------------------------------------------------------------------- #
-#                              Explore Periodicity                             #
-# ---------------------------------------------------------------------------- #
-
-
-# -------------------------------- One Mission ------------------------------- #
-
-this_data = filter(data_large_bin_tags, mission == 1)
-this_data_small = this_data[1:10000,]
-
-this_data_small |> pull(time) |> month(label = TRUE)
-
-ggplot(data = this_data_small, mapping = aes(x = time, y = oxygen)) + geom_point() 
-
-data_large_bin_tags %>% pull(time) %>% month(label = TRUE) %>% plot()
-all_months = data_large_bin_tags %>% pull(time) %>% month(label = TRUE)
-table(all_months)
-
-# Auto-correlation plot
-this_O2 = this_data$oxygen
-acf(this_O2, lag.max = 10000)
-
-
-# Simple Fourier analysis
-this_fourier = fft(this_O2)
-this_n = length(this_O2)  
-this_freqs = seq_len(this_n) / this_n
-plot(this_freqs[-1], abs(this_fourier)[-1])
-
-which.max(abs(this_fourier))
-
-
-
-# Time series decomposition?
-# Doesn't work. Need to specify seasonal period in frequency argument to ts().
-
-
-
-
-this_TS = ts(this_O2)
-decomp = stl(this_TS)
-
-
-
-# Periodogram
-periodogram_1 = cpgram(this_TS)
-
-periodogram_2 = spec.pgram(this_O2)
