@@ -2,3 +2,4 @@
 */*.xlsx
 * Data/*.pdf
 map_tiles_ggspatial/*
+*.code-workspace
